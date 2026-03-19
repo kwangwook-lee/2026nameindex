@@ -396,9 +396,9 @@
                 return;
             }
 
-            // 이름 또는 학번으로 일치하는 학생 찾기
+            // 이름 또는 학번에 검색어가 '포함'된 학생 찾기 (부분 일치 검색)
             const matchedStudents = studentsData.filter(student => 
-                student.id === query || student.name === query
+                student.id.includes(query) || student.name.includes(query)
             );
 
             if (matchedStudents.length === 0) {
