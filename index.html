@@ -7,12 +7,22 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: 'Pretendard', sans-serif; }
+        
+        /* 인쇄용 스타일 (인쇄 시 불필요한 요소 숨김 및 표 선명하게) */
+        @media print {
+            body { background-color: white; padding: 0; margin: 0; }
+            .no-print { display: none !important; }
+            .print-full-width { max-width: 100% !important; box-shadow: none !important; border: none !important; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid #4a5568 !important; padding: 8px !important; color: black !important; }
+            thead th { background-color: #f7fafc !important; }
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen p-6">
-    <div class="max-w-xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden">
+    <div class="max-w-xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden print-full-width">
         <!-- 헤더 -->
-        <div class="bg-blue-600 p-6 text-white">
+        <div class="bg-blue-600 p-6 text-white no-print">
             <h1 class="text-2xl font-bold">학생 & 담임 조회 시스템</h1>
             <p class="text-blue-100 mt-2 text-sm">학생의 학번 또는 이름을 입력하여 정보를 확인하세요.</p>
         </div>
@@ -20,8 +30,8 @@
         <div class="p-6">
             <!-- 검색 섹션 (데이터 내장됨) -->
             <div id="search-section" class="transition-opacity duration-300">
-                <h2 class="font-semibold text-gray-700 mb-4">정보 검색</h2>
-                <div class="flex gap-2 mb-6">
+                <h2 class="font-semibold text-gray-700 mb-4 no-print">정보 검색</h2>
+                <div class="flex gap-2 mb-6 no-print">
                     <input type="text" id="searchInput" placeholder="학번 또는 이름 입력 (예: 10101, 권기백)" 
                         class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     <button id="searchBtn" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium">검색</button>
@@ -73,6 +83,7 @@
 
         // === 2. 학생 데이터 내장 (누락된 학생은 여기에 추가로 붙여넣으세요) ===
         const rawStudentCSV = `학번,이름
+학번,이름
 10101,권기백
 10102,김이현
 10103,박어진
@@ -396,45 +407,113 @@
                 return;
             }
 
-            // 이름 또는 학번에 검색어가 '포함'된 학생 찾기 (부분 일치 검색)
+            // 학번은 앞에서부터 일치(startsWith)하는지 확인, 이름은 포함(includes)되어 있는지 확인
             const matchedStudents = studentsData.filter(student => 
-                student.id.includes(query) || student.name.includes(query)
+                student.id.startsWith(query) || student.name.includes(query)
             );
 
             if (matchedStudents.length === 0) {
                 resultsDiv.innerHTML = `
-                    <div class="bg-red-50 text-red-600 p-4 rounded-lg text-center">
+                    <div class="bg-red-50 text-red-600 p-4 rounded-lg text-center no-print">
                         '${query}'에 대한 검색 결과가 없습니다.
                     </div>`;
                 return;
             }
 
-            // 결과 화면에 출력
-            matchedStudents.forEach(student => {
-                // 학번(예: 10101)에서 학년과 반 추출
-                const grade = student.id.charAt(0);
-                const classNum = parseInt(student.id.substring(1, 3), 10);
-                
-                // 담임 선생님 이름 찾기
-                const teacherName = teachersData[`${grade}-${classNum}`] || '<span class="text-red-500">정보 없음</span>';
+            // 검색된 첫 번째 학생을 기준으로 학년, 반, 담임 정보 자동 추출
+            const targetGrade = matchedStudents[0].id.charAt(0);
+            const targetClassNum = parseInt(matchedStudents[0].id.substring(1, 3), 10);
+            const targetTeacher = teachersData[`${targetGrade}-${targetClassNum}`] || '정보 없음';
 
-                const card = document.createElement('div');
-                card.className = 'border border-gray-200 p-4 rounded-xl flex items-center justify-between bg-white shadow-sm';
-                card.innerHTML = `
-                    <div>
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">학생</span>
-                            <span class="font-bold text-lg text-gray-800">${student.name}</span>
-                        </div>
-                        <p class="text-gray-600 text-sm tracking-wide">학번: <span class="font-mono text-gray-800">${student.id}</span></p>
+            // 결과 화면에 출력 (인쇄용 표 형식으로 변경)
+            let htmlOutput = `
+                <div class="flex justify-between items-end mb-4 no-print">
+                    <h3 class="text-gray-700 font-bold">검색 결과 (${matchedStudents.length}명)</h3>
+                    <button onclick="printRoster()" class="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition flex items-center gap-2 text-sm font-medium">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                        명렬표 인쇄
+                    </button>
+                </div>
+                
+                <div class="hidden print:block mb-4">
+                    <h2 class="text-2xl font-bold text-center mb-2">2026년 배정고 ${targetGrade}학년 ${targetClassNum}반 명렬표</h2>
+                    <div class="text-right font-bold text-lg pr-1">
+                        담임 : ${targetTeacher}
                     </div>
-                    <div class="text-right border-l pl-4 border-gray-200">
-                        <span class="block text-xs text-gray-500 mb-1">담임 선생님</span>
-                        <span class="font-bold text-gray-800">${teacherName}</span>
-                    </div>
+                </div>
+
+                <div class="overflow-x-auto border border-gray-300 rounded-lg print:border-none print:overflow-visible">
+                    <table class="w-full text-left bg-white border-collapse border border-gray-300">
+                        <thead class="bg-gray-50 border-b border-gray-300">
+                            <tr>
+                                <th class="p-2 text-center text-sm font-semibold text-gray-700 border border-gray-300 whitespace-nowrap w-12">연번</th>
+                                <th class="p-2 text-center text-sm font-semibold text-gray-700 border border-gray-300 whitespace-nowrap w-20">학번</th>
+                                <th class="p-2 text-center text-sm font-semibold text-gray-700 border border-gray-300 whitespace-nowrap w-24">이름</th>
+                                <th class="p-2 border border-gray-300 w-[14%]"></th>
+                                <th class="p-2 border border-gray-300 w-[14%]"></th>
+                                <th class="p-2 border border-gray-300 w-[14%]"></th>
+                                <th class="p-2 border border-gray-300 w-[14%]"></th>
+                                <th class="p-2 border border-gray-300 w-[14%]"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-300 print:divide-black">
+            `;
+
+            matchedStudents.forEach((student, index) => {
+                // h-10 클래스를 추가하여 인쇄 후 수기로 글씨를 쓰기 편하도록 행 높이를 확보했습니다.
+                htmlOutput += `
+                    <tr class="hover:bg-gray-50 h-10">
+                        <td class="p-2 text-center text-sm text-gray-600 border border-gray-300 whitespace-nowrap">${index + 1}</td>
+                        <td class="p-2 text-center font-mono text-gray-900 border border-gray-300 whitespace-nowrap">${student.id}</td>
+                        <td class="p-2 text-center font-bold text-gray-900 border border-gray-300 whitespace-nowrap">${student.name}</td>
+                        <td class="p-2 border border-gray-300"></td>
+                        <td class="p-2 border border-gray-300"></td>
+                        <td class="p-2 border border-gray-300"></td>
+                        <td class="p-2 border border-gray-300"></td>
+                        <td class="p-2 border border-gray-300"></td>
+                    </tr>
                 `;
-                resultsDiv.appendChild(card);
             });
+
+            htmlOutput += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            resultsDiv.innerHTML = htmlOutput;
+        }
+
+        // 인쇄 기능 (미리보기 환경 예외 처리 포함)
+        function printRoster() {
+            try {
+                // iframe 내부(현재 채팅창의 미리보기 환경)인지 확인
+                if (window.self !== window.top) {
+                    showToast('오른쪽 미리보기 화면에서는 보안상 인쇄가 차단됩니다.<br>파일을 컴퓨터에 저장한 후 실제 웹 브라우저(크롬, 엣지)에서 열어주세요.');
+                } else {
+                    window.print(); // 정상 환경에서는 바로 인쇄 실행
+                }
+            } catch (e) {
+                showToast('인쇄 기능을 실행할 수 없습니다.');
+            }
+        }
+
+        // 알림 메시지(Toast) 표시 함수
+        function showToast(message) {
+            // 기존 알림이 있다면 제거
+            const existingToast = document.getElementById('customToast');
+            if (existingToast) existingToast.remove();
+
+            const toast = document.createElement('div');
+            toast.id = 'customToast';
+            toast.className = 'fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-4 rounded-lg shadow-xl z-50 transition-opacity duration-300 no-print text-center text-sm leading-relaxed';
+            toast.innerHTML = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
         }
 
         // 이벤트 리스너 연결
