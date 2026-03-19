@@ -407,10 +407,19 @@
                 return;
             }
 
-            // 학번은 앞에서부터 일치(startsWith)하는지 확인, 이름은 포함(includes)되어 있는지 확인
-            const matchedStudents = studentsData.filter(student => 
-                student.id.startsWith(query) || student.name.includes(query)
-            );
+            // 1. 입력값이 3자리 숫자인지 판별 (예: 102) -> 명렬표 모드로 전환
+            const isRosterMode = /^\d{3}$/.test(query);
+
+            // 2. 검색 모드에 따라 필터링 다르게 적용
+            const matchedStudents = studentsData.filter(student => {
+                if (isRosterMode) {
+                    // 명렬표 모드: 학번이 해당 3자리 숫자로 '시작'하는 학생만 추출
+                    return student.id.startsWith(query);
+                } else {
+                    // 일반 카드 모드: 학번이나 이름에 검색어가 '포함'된 학생 추출 (5자리 학번도 포함)
+                    return student.id.includes(query) || student.name.includes(query);
+                }
+            });
 
             if (matchedStudents.length === 0) {
                 resultsDiv.innerHTML = `
@@ -420,68 +429,104 @@
                 return;
             }
 
-            // 검색된 첫 번째 학생을 기준으로 학년, 반, 담임 정보 자동 추출
-            const targetGrade = matchedStudents[0].id.charAt(0);
-            const targetClassNum = parseInt(matchedStudents[0].id.substring(1, 3), 10);
-            const targetTeacher = teachersData[`${targetGrade}-${targetClassNum}`] || '정보 없음';
+            if (isRosterMode) {
+                // =============== [1] 명렬표 모드 (3자리 숫자 검색 시) ===============
+                // 검색된 첫 번째 학생을 기준으로 학년, 반, 담임 정보 자동 추출
+                const targetGrade = matchedStudents[0].id.charAt(0);
+                const targetClassNum = parseInt(matchedStudents[0].id.substring(1, 3), 10);
+                const targetTeacher = teachersData[`${targetGrade}-${targetClassNum}`] || '정보 없음';
 
-            // 결과 화면에 출력 (인쇄용 표 형식으로 변경)
-            let htmlOutput = `
-                <div class="flex justify-between items-end mb-4 no-print">
-                    <h3 class="text-gray-700 font-bold">검색 결과 (${matchedStudents.length}명)</h3>
-                    <button onclick="printRoster()" class="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition flex items-center gap-2 text-sm font-medium">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                        명렬표 인쇄
-                    </button>
-                </div>
-                
-                <div class="hidden print:block mb-4">
-                    <h2 class="text-2xl font-bold text-center mb-2">2026년 배정고 ${targetGrade}학년 ${targetClassNum}반 명렬표</h2>
-                    <div class="text-right font-bold text-lg pr-1">
-                        담임 : ${targetTeacher}
+                let htmlOutput = `
+                    <div class="flex justify-between items-end mb-4 no-print">
+                        <h3 class="text-gray-700 font-bold">검색 결과 (${matchedStudents.length}명)</h3>
+                        <button onclick="printRoster()" class="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition flex items-center gap-2 text-sm font-medium">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                            명렬표 인쇄
+                        </button>
                     </div>
-                </div>
+                    
+                    <div class="hidden print:block mb-4">
+                        <h2 class="text-2xl font-bold text-center mb-2">2026년 배정고 ${targetGrade}학년 ${targetClassNum}반 명렬표</h2>
+                        <div class="text-right font-bold text-lg pr-1">
+                            담임 : ${targetTeacher}
+                        </div>
+                    </div>
 
-                <div class="overflow-x-auto border border-gray-300 rounded-lg print:border-none print:overflow-visible">
-                    <table class="w-full text-left bg-white border-collapse border border-gray-300">
-                        <thead class="bg-gray-50 border-b border-gray-300">
-                            <tr>
-                                <th class="p-2 text-center text-sm font-semibold text-gray-700 border border-gray-300 whitespace-nowrap w-12">연번</th>
-                                <th class="p-2 text-center text-sm font-semibold text-gray-700 border border-gray-300 whitespace-nowrap w-20">학번</th>
-                                <th class="p-2 text-center text-sm font-semibold text-gray-700 border border-gray-300 whitespace-nowrap w-24">이름</th>
-                                <th class="p-2 border border-gray-300 w-[14%]"></th>
-                                <th class="p-2 border border-gray-300 w-[14%]"></th>
-                                <th class="p-2 border border-gray-300 w-[14%]"></th>
-                                <th class="p-2 border border-gray-300 w-[14%]"></th>
-                                <th class="p-2 border border-gray-300 w-[14%]"></th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-300 print:divide-black">
-            `;
-
-            matchedStudents.forEach((student, index) => {
-                // h-10 클래스를 추가하여 인쇄 후 수기로 글씨를 쓰기 편하도록 행 높이를 확보했습니다.
-                htmlOutput += `
-                    <tr class="hover:bg-gray-50 h-10">
-                        <td class="p-2 text-center text-sm text-gray-600 border border-gray-300 whitespace-nowrap">${index + 1}</td>
-                        <td class="p-2 text-center font-mono text-gray-900 border border-gray-300 whitespace-nowrap">${student.id}</td>
-                        <td class="p-2 text-center font-bold text-gray-900 border border-gray-300 whitespace-nowrap">${student.name}</td>
-                        <td class="p-2 border border-gray-300"></td>
-                        <td class="p-2 border border-gray-300"></td>
-                        <td class="p-2 border border-gray-300"></td>
-                        <td class="p-2 border border-gray-300"></td>
-                        <td class="p-2 border border-gray-300"></td>
-                    </tr>
+                    <div class="overflow-x-auto border border-gray-300 rounded-lg print:border-none print:overflow-visible">
+                        <table class="w-full text-left bg-white border-collapse border border-gray-300">
+                            <thead class="bg-gray-50 border-b border-gray-300">
+                                <tr>
+                                    <th class="p-2 text-center text-sm font-semibold text-gray-700 border border-gray-300 whitespace-nowrap w-12">연번</th>
+                                    <th class="p-2 text-center text-sm font-semibold text-gray-700 border border-gray-300 whitespace-nowrap w-20">학번</th>
+                                    <th class="p-2 text-center text-sm font-semibold text-gray-700 border border-gray-300 whitespace-nowrap w-24">이름</th>
+                                    <th class="p-2 border border-gray-300 w-[14%]"></th>
+                                    <th class="p-2 border border-gray-300 w-[14%]"></th>
+                                    <th class="p-2 border border-gray-300 w-[14%]"></th>
+                                    <th class="p-2 border border-gray-300 w-[14%]"></th>
+                                    <th class="p-2 border border-gray-300 w-[14%]"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-300 print:divide-black">
                 `;
-            });
 
-            htmlOutput += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
-            
-            resultsDiv.innerHTML = htmlOutput;
+                matchedStudents.forEach((student, index) => {
+                    // h-10 클래스를 추가하여 인쇄 후 수기로 글씨를 쓰기 편하도록 행 높이를 확보했습니다.
+                    htmlOutput += `
+                        <tr class="hover:bg-gray-50 h-10">
+                            <td class="p-2 text-center text-sm text-gray-600 border border-gray-300 whitespace-nowrap">${index + 1}</td>
+                            <td class="p-2 text-center font-mono text-gray-900 border border-gray-300 whitespace-nowrap">${student.id}</td>
+                            <td class="p-2 text-center font-bold text-gray-900 border border-gray-300 whitespace-nowrap">${student.name}</td>
+                            <td class="p-2 border border-gray-300"></td>
+                            <td class="p-2 border border-gray-300"></td>
+                            <td class="p-2 border border-gray-300"></td>
+                            <td class="p-2 border border-gray-300"></td>
+                            <td class="p-2 border border-gray-300"></td>
+                        </tr>
+                    `;
+                });
+
+                htmlOutput += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                
+                resultsDiv.innerHTML = htmlOutput;
+                
+            } else {
+                // =============== [2] 일반 카드 모드 (이름, 5자리 학번 검색 시) ===============
+                let htmlOutput = `
+                    <div class="flex justify-between items-end mb-4 no-print">
+                        <h3 class="text-gray-700 font-bold">검색 결과 (${matchedStudents.length}명)</h3>
+                    </div>
+                    <div class="space-y-3">
+                `;
+
+                matchedStudents.forEach(student => {
+                    const grade = student.id.charAt(0);
+                    const classNum = parseInt(student.id.substring(1, 3), 10);
+                    const teacherName = teachersData[`${grade}-${classNum}`] || '<span class="text-red-500">정보 없음</span>';
+
+                    htmlOutput += `
+                        <div class="border border-gray-200 p-4 rounded-xl flex items-center justify-between bg-white shadow-sm">
+                            <div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">학생</span>
+                                    <span class="font-bold text-lg text-gray-800">${student.name}</span>
+                                </div>
+                                <p class="text-gray-600 text-sm tracking-wide">학번: <span class="font-mono text-gray-800">${student.id}</span></p>
+                            </div>
+                            <div class="text-right border-l pl-4 border-gray-200">
+                                <span class="block text-xs text-gray-500 mb-1">담임 선생님</span>
+                                <span class="font-bold text-gray-800">${teacherName}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                htmlOutput += `</div>`;
+                resultsDiv.innerHTML = htmlOutput;
+            }
         }
 
         // 인쇄 기능 (미리보기 환경 예외 처리 포함)
