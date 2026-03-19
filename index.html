@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학생 및 담임 조회 시스템</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-6">
+    <div class="max-w-xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden">
+        <!-- 헤더 -->
+        <div class="bg-blue-600 p-6 text-white">
+            <h1 class="text-2xl font-bold">학생 & 담임 조회 시스템</h1>
+            <p class="text-blue-100 mt-2 text-sm">학생의 학번 또는 이름을 입력하여 정보를 확인하세요.</p>
+        </div>
+
+        <div class="p-6">
+            <!-- 검색 섹션 (데이터 내장됨) -->
+            <div id="search-section" class="transition-opacity duration-300">
+                <h2 class="font-semibold text-gray-700 mb-4">정보 검색</h2>
+                <div class="flex gap-2 mb-6">
+                    <input type="text" id="searchInput" placeholder="학번 또는 이름 입력 (예: 10101, 권기백)" 
+                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <button id="searchBtn" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium">검색</button>
+                </div>
+
+                <!-- 결과 표시 영역 -->
+                <div id="results" class="space-y-3">
+                    <!-- 검색 결과가 여기에 동적으로 추가됩니다 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 데이터를 저장할 변수
+        let teachersData = {}; // {'1-1': '김현정', ...}
+        let studentsData = []; // [{id: '10101', name: '권기백'}, ...]
+
+        // CSV 파싱 유틸리티 함수
+        function parseCSV(text) {
+            // BOM(Byte Order Mark) 제거
+            text = text.replace(/^\uFEFF/, '');
+            const lines = text.trim().split(/\r?\n/);
+            return lines.map(line => line.split(',').map(val => val.trim()));
+        }
+
+        // === 1. 담임명렬 데이터 내장 ===
+        const rawTeacherCSV = `학년,반,담임
+1학년,1반,김현정
+1학년,2반,류제원
+1학년,3반,고경미
+1학년,4반,고재덕
+1학년,5반,김지수
+1학년,6반,유지연
+2학년,1반,최미리
+2학년,2반,장영화
+2학년,3반,신선경
+2학년,4반,김용진
+2학년,5반,유지혜
+2학년,6반,박은정
+2학년,7반,강슬기
+3학년,1반,김혜미
+3학년,2반,남송현
+3학년,3반,이소진
+3학년,4반,권민지
+3학년,5반,김성년
+3학년,6반,김병희
+3학년,7반,이명진`;
+
+        // === 2. 학생 데이터 내장 (누락된 학생은 여기에 추가로 붙여넣으세요) ===
+        const rawStudentCSV = `학번,이름
+10101,권기백
+10102,김이현
+10103,박어진
+10104,설호승
+10105,안건호
+10106,안성민
+10107,여완
+10108,유상우
+10109,윤도현
+10110,이시환
+10111,이유찬
+10112,임채오
+10113,정성원
+10114,정시윤
+10115,조재민
+10116,최원우
+10117,황명원
+10201,권재용
+10202,김도원
+10203,김도현
+10204,김동현
+10205,김유찬
+10206,김윤하
+10207,김태영
+10208,김태진
+10209,김현진
+10210,남휘승
+10211,노현민
+10212,박현민
+10213,손성민
+10214,양지승
+10215,유주영
+10216,윤단우
+10217,윤인성
+10218,이성재
+10301,강준서
+10302,길유빈
+10303,김건희
+10304,김대현
+10305,명예한
+10306,박민규
+10307,박준성
+10308,서정진
+10309,성진우
+10310,신인욱
+10311,심지훈
+10312,안정민
+10313,여태규
+10314,이경민
+10315,이우현
+10316,이준혁
+10317,장인호
+10318,최원호
+10401,구영은
+10402,권영찬
+10403,김도훈
+10404,김동준
+10405,김명진
+10406,김세원
+10407,김영준
+10408,나희성
+10409,민승기
+10410,박성민
+10411,박현수
+10412,변상호
+10413,왕건희
+10414,이재원
+10415,이정우
+10416,전성우
+10417,황현승
+10501,강규현
+10502,강민성
+10503,김대영
+10504,김준모
+10505,박준우
+10506,변준우
+10507,송현승
+10508,심윤우
+10509,양시우
+10510,유가온
+10511,유정민
+10512,이승원
+10513,이예성
+10514,이호찬
+10515,정민우
+10516,정희윤
+10517,조혜강
+10518,최진영
+10601,강성찬
+10602,김도훈
+10603,김재원
+10604,김준형
+10605,김지우
+10606,김지원
+10607,박준하
+10608,박지율
+10609,양윤제
+10610,엄규연
+10611,육건우
+10612,이규빈
+10613,장도윤
+10614,장석준
+10615,전상빈
+10616,정결
+10617,하주원
+10618,한승민
+20101,강동훈
+20102,김강민
+20103,김상헌
+20104,김준휘
+20105,문채준
+20106,박민재
+20107,방수한
+20108,신주환
+20109,안지승
+20110,오윤건
+20111,이우진
+20112,정희승
+20113,홍성훈
+20201,김민준
+20202,김언수
+20203,박성원
+20204,박재영
+20205,박지후
+20206,박형영
+20207,송지호
+20208,송찬우
+20209,원선우
+20210,윤지형
+20211,이도은
+20212,이민규
+20213,이승민
+20301,권용희
+20302,김근우
+20303,김민건
+20304,김윤우
+20305,김재훈
+20306,김주원
+20307,이선교
+20308,이준서
+20309,전태율
+20310,전하승
+20311,전현성
+20312,최찬영
+20313,한성훈
+20314,허주원
+20401,강예범
+20402,강지호
+20403,김강산
+20404,김민찬
+20405,김지원
+20406,박규민
+20407,박준희
+20408,박현준
+20409,백승준
+20410,변석주
+20411,이승민
+20412,장성호
+20413,최성인
+20414,최현서
+20501,강우현
+20502,김준수
+20503,김태형
+20504,안경준
+20505,양성율
+20506,양성훈
+20507,이민우
+20508,이선우
+20509,이윤호
+20510,이진성
+20511,조성건
+20512,조태규
+20513,최준성
+20601,권현우
+20602,김다니엘
+20603,김시훈
+20604,김진민
+20605,박산하
+20606,박시현
+20607,심승연
+20608,이시후
+20609,이준범
+20610,이현승
+20611,이현준
+20612,임찬호
+20613,장정우
+20614,최석현
+20701,강기연
+20702,강민준
+20703,김미종
+20704,김지윤
+20705,류주원
+20706,류현우
+20707,박한진
+20708,양지우
+20709,이도경
+20710,이충희
+20711,정은우
+20712,주은빈
+20713,진현세
+30101,김재환
+30102,박예찬
+30103,박재원
+30104,손재민
+30105,이원준
+30106,이윤건
+30107,이정민
+30108,장윤성
+30109,정시환
+30110,조민오
+30111,최문경
+30112,최현
+30201,김민섭
+30202,김지훈
+30203,우형민
+30204,육현우
+30205,윤동완
+30206,이연우
+30207,이윤우
+30208,이의준
+30209,이재빈
+30210,조민수
+30211,최준호
+30212,김성훈
+30301,김규혁
+30302,김도완
+30303,김도훈
+30304,서민준
+30305,신민기
+30306,위정현
+30307,이승현
+30308,이윤호
+30309,이준서
+30310,정인하
+30311,정현오
+30312,주어진
+30401,고예성
+30402,김도균
+30403,김도현
+30404,김민성
+30405,김서준
+30406,김우민
+30407,문승현
+30408,이남권
+30409,정민규
+30410,정승재
+30411,차재윤
+30412,황정민
+30501,구민서
+30502,김도훈
+30503,김성현
+30504,김우연
+30505,김준후
+30506,박규동
+30507,박재민
+30508,성건오
+30509,안의진
+30510,윤승현
+30511,정윤교
+30512,차주영
+30513,곽민서
+30601,강재현
+30602,김신엽
+30603,김영효
+30604,박건우
+30605,박재현
+30606,서동현
+30607,서수민
+30608,윤시후
+30609,이수혁
+30610,장승모
+30611,장우석
+30612,정주원
+30701,강정헌
+30702,권민재
+30703,김민서
+30704,김윤건
+30705,박석현
+30706,박세환
+30707,박준서
+30708,옥태산
+30709,이재원
+30710,이태윤
+30711,임성빈
+30712,조남훈`;
+
+        // 페이지 로드 시 데이터 자동 초기화
+        function initializeData() {
+            // 담임 데이터 파싱
+            const tData = parseCSV(rawTeacherCSV);
+            const tStartIdx = tData[0][0].includes('학년') ? 1 : 0;
+            for (let i = tStartIdx; i < tData.length; i++) {
+                if (tData[i].length >= 3) {
+                    const grade = parseInt(tData[i][0].replace(/[^0-9]/g, ''));
+                    const classNum = parseInt(tData[i][1].replace(/[^0-9]/g, ''));
+                    teachersData[`${grade}-${classNum}`] = tData[i][2];
+                }
+            }
+
+            // 학생 데이터 파싱
+            const sData = parseCSV(rawStudentCSV);
+            const sStartIdx = sData[0][0].includes('학번') ? 1 : 0;
+            for (let i = sStartIdx; i < sData.length; i++) {
+                if (sData[i].length >= 2) {
+                    studentsData.push({ id: sData[i][0], name: sData[i][1] });
+                }
+            }
+        }
+
+        // 스크립트 실행 시 바로 초기화
+        initializeData();
+
+        // 검색 실행 함수
+        function executeSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = ''; // 기존 결과 초기화
+
+            if (!query) {
+                resultsDiv.innerHTML = '<p class="text-gray-500 text-center py-4">검색어를 입력해주세요.</p>';
+                return;
+            }
+
+            // 이름 또는 학번으로 일치하는 학생 찾기
+            const matchedStudents = studentsData.filter(student => 
+                student.id === query || student.name === query
+            );
+
+            if (matchedStudents.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="bg-red-50 text-red-600 p-4 rounded-lg text-center">
+                        '${query}'에 대한 검색 결과가 없습니다.
+                    </div>`;
+                return;
+            }
+
+            // 결과 화면에 출력
+            matchedStudents.forEach(student => {
+                // 학번(예: 10101)에서 학년과 반 추출
+                const grade = student.id.charAt(0);
+                const classNum = parseInt(student.id.substring(1, 3), 10);
+                
+                // 담임 선생님 이름 찾기
+                const teacherName = teachersData[`${grade}-${classNum}`] || '<span class="text-red-500">정보 없음</span>';
+
+                const card = document.createElement('div');
+                card.className = 'border border-gray-200 p-4 rounded-xl flex items-center justify-between bg-white shadow-sm';
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">학생</span>
+                            <span class="font-bold text-lg text-gray-800">${student.name}</span>
+                        </div>
+                        <p class="text-gray-600 text-sm tracking-wide">학번: <span class="font-mono text-gray-800">${student.id}</span></p>
+                    </div>
+                    <div class="text-right border-l pl-4 border-gray-200">
+                        <span class="block text-xs text-gray-500 mb-1">담임 선생님</span>
+                        <span class="font-bold text-gray-800">${teacherName}</span>
+                    </div>
+                `;
+                resultsDiv.appendChild(card);
+            });
+        }
+
+        // 이벤트 리스너 연결
+        document.getElementById('searchBtn').addEventListener('click', executeSearch);
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') executeSearch();
+        });
+
+    </script>
+</body>
+</html>
